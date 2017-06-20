@@ -1296,9 +1296,15 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 
 					// Make a new expression and replace the wildcard within this cloned expression.
 					call.Args[0] = &VarRef{Val: ref.Val, Type: ref.Type}
+                    newAlias := f.Name()
+                    if newAlias == "" {
+                       newAlias = ref.Val;
+                    } else {
+                       newAlias = fmt.Sprintf("%s_%s", newAlias, ref.Val)
+                    }
 					rwFields = append(rwFields, &Field{
 						Expr:  CloneExpr(template),
-						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
+						Alias: newAlias,
 					})
 				}
 			case *BinaryExpr:
@@ -1547,7 +1553,7 @@ func (s *SelectStatement) ColumnNames() []string {
 
 	// Resolve aliases first.
 	for i, col := range columnFields {
-		if col.Alias != "" {
+		if col.Alias != "" && col.Alias != "NOALIAS" {
 			columnNames[i+offset] = col.Alias
 			names[col.Alias] = 1
 		}
@@ -3450,14 +3456,18 @@ type Field struct {
 // Otherwise uses the function name or variable name.
 func (f *Field) Name() string {
 	// Return alias, if set.
-	if f.Alias != "" {
+	if f.Alias != "" && f.Alias != "NOALIAS" {
 		return f.Alias
 	}
 
 	// Return the function name or variable name, if available.
 	switch expr := f.Expr.(type) {
 	case *Call:
-		return expr.Name
+        if (f.Alias == "NOALIAS") {
+            return ""
+        } else {
+            return expr.Name
+        }
 	case *BinaryExpr:
 		return BinaryExprName(expr)
 	case *ParenExpr:
